@@ -16,6 +16,7 @@ variables:
 
 florian-test:
   image: alpine
+  tags: [ "runner:main", "size:large" ]
   script:
     - apk add git
     - git clone git@github.com:DataDog/web-ui.git
