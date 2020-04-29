@@ -19,7 +19,7 @@ florian-test:
   tags: [ "runner:main", "size:large" ]
   script:
     - apk add git
-    - git clone git@github.com:DataDog/web-ui.git
+    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/Datadog/web-ui.git
 
 release-auto:
   image: $TAGGER_IMAGE
