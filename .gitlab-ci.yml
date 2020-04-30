@@ -25,7 +25,6 @@ stages:
 parse-typescript:
   stage: parse
   image: $TYPESCRIPT_PARSER_IMAGE
-  tags: [ "runner:main", "size:large" ]
   script:
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/Datadog/web-ui.git --depth 1
     - ts-node ./.gitlab/webui-ts-parser/script.ts > logs_integrations.json
@@ -33,10 +32,17 @@ parse-typescript:
     paths:
       - logs_integrations.json
     expire_in: 1 day
+  tags: [ "runner:main", "size:large" ]
+
 
 validate-log-integrations:
   stage: validate
-  image:
+  image: $VALIDATE_LOG_INTGS
+  script:
+    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/Datadog/logs-backend.git --depth 1
+    - python .gitlab/validate-logs-intgs/validate_log_intgs.py
+  tags: [ "runner:main", "size:large" ]
+
 
 release-auto:
   stage: release
