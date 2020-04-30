@@ -24,7 +24,7 @@ stages:
 
 parse-typescript:
   stage: parse
-  image: $TYPESCRIPT_PARSER_IMAGE
+  image: $WEBUI_TS_PARSER_IMAGE
   script:
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/Datadog/web-ui.git --depth 1
     - ts-node ./.gitlab/webui-ts-parser/script.ts > logs_integrations.json
@@ -110,9 +110,9 @@ tagger-image-builder:
 webui-ts-parser-builder:
   stage: build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:18.03.1
-  only:
-    changes:
-      - .gitlab/webui-ts-parser/**
+  #only:
+   # changes:
+   #   - .gitlab/webui-ts-parser/**
     #refs:
     #  - master
   script:
@@ -124,9 +124,9 @@ webui-ts-parser-builder:
 validate-log-intgs-builder:
   stage: build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:18.03.1
-  only:
-    changes:
-      - .gitlab/validate-logs-intgs/**
+  #only:
+    #changes:
+     # - .gitlab/validate-logs-intgs/**
     #refs:
     #  - master
   script:
