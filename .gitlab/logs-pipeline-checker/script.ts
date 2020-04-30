@@ -20,5 +20,4 @@ logIntegrationDeclaration += "\nLOG_INTEGRATIONS;\n"
 
 const LOG_INTEGRATIONS = eval(ts.transpile(logIntegrationDeclaration))
 
-var jsonData = JSON.stringify(LOG_INTEGRATIONS);
-fs.writeFileSync("log_integrations.json", jsonData, 'utf8');
+console.log(JSON.stringify(LOG_INTEGRATIONS));

@@ -23,7 +23,11 @@ florian-test:
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/Datadog/logs-backend.git
     - npm install -g ts-node
     - npm install typescript @typescript-eslint/parser @typescript-eslint/typescript-estree @types/node
-    - ts-node ./.gitlab/logs-pipeline-checker/script.ts
+    - ts-node ./.gitlab/logs-pipeline-checker/script.ts > logs_integrations.json
+  artifacts:
+    paths:
+      - logs_integrations.json
+    expire_in: 1 day
 
 
 release-auto:
