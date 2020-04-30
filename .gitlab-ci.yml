@@ -1,6 +1,8 @@
 variables:
   REMINDER_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/integrations-core:reminder
   TAGGER_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/integrations-core:tagger
+  WEBUI_TS_PARSER_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/integrations-core:webui_ts_parser
+  VALIDATE_LOG_INTGS: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/integrations-core:validate_log_intgs
   TAGGER_EMAIL: packages@datadoghq.com
   TAGGER_NAME: ci.integrations-core
 
@@ -14,23 +16,30 @@ variables:
 #     - ./.gitlab/reminder/release-reminder.sh 2>&1
 #   tags: [ "runner:main", "size:large" ]
 
-florian-test:
-  image: node:alpine
+stages:
+  - build
+  - parse
+  - validate
+  - release
+
+parse-typescript:
+  stage: parse
+  image: $TYPESCRIPT_PARSER_IMAGE
   tags: [ "runner:main", "size:large" ]
   script:
-    - apk add git
-    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/Datadog/web-ui.git
-    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/Datadog/logs-backend.git
-    - npm install -g ts-node
-    - npm install typescript @typescript-eslint/parser @typescript-eslint/typescript-estree @types/node
-    - ts-node ./.gitlab/logs-pipeline-checker/script.ts > logs_integrations.json
+    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/Datadog/web-ui.git --depth 1
+    - ts-node ./.gitlab/webui-ts-parser/script.ts > logs_integrations.json
   artifacts:
     paths:
       - logs_integrations.json
     expire_in: 1 day
 
+validate-log-integrations:
+  stage: validate
+  image:
 
 release-auto:
+  stage: release
   image: $TAGGER_IMAGE
   only:
     - master
@@ -42,6 +51,7 @@ release-auto:
   tags: [ "runner:main", "size:large" ]
 
 release-manual:
+  stage: release
   image: $TAGGER_IMAGE
   only:
     # Integration release tags e.g. any_check-X.Y.Z-rc.N
@@ -61,6 +71,7 @@ release-manual:
   tags: [ "runner:main", "size:large" ]
 
 reminder-image-builder:
+  stage: build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:18.03.1
   only:
     changes:
@@ -75,6 +86,7 @@ reminder-image-builder:
   tags: [ "runner:docker", "size:large" ]
 
 tagger-image-builder:
+  stage: build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:18.03.1
   only:
     changes:
@@ -87,4 +99,32 @@ tagger-image-builder:
     - docker images $TAGGER_IMAGE
     - docker push $TAGGER_IMAGE
   except: [ tags, schedules ]
+  tags: [ "runner:docker", "size:large" ]
+
+webui-ts-parser-builder:
+  stage: build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:18.03.1
+  only:
+    changes:
+      - .gitlab/webui-ts-parser/**
+    #refs:
+    #  - master
+  script:
+    - docker build --tag $WEBUI_TS_PARSER_IMAGE -f .gitlab/webui-ts-parser/Dockerfile
+    - docker images $WEBUI_TS_PARSER_IMAGE
+    - docker push $WEBUI_TS_PARSER_IMAGE
+  tags: [ "runner:docker", "size:large" ]
+
+validate-log-intgs-builder:
+  stage: build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:18.03.1
+  only:
+    changes:
+      - .gitlab/validate-logs-intgs/**
+    #refs:
+    #  - master
+  script:
+    - docker build --tag $VALIDATE_LOG_INTGS -f .gitlab/validate-logs-intgs/Dockerfile
+    - docker images $VALIDATE_LOG_INTGS
+    - docker push $VALIDATE_LOG_INTGS
   tags: [ "runner:docker", "size:large" ]
