@@ -116,7 +116,8 @@ webui-ts-parser-builder:
     #refs:
     #  - master
   script:
-    - docker build --tag $WEBUI_TS_PARSER_IMAGE -f .gitlab/webui-ts-parser/Dockerfile
+    - cd .gitlab/webui-ts-parser/
+    - docker build --tag $WEBUI_TS_PARSER_IMAGE .
     - docker images $WEBUI_TS_PARSER_IMAGE
     - docker push $WEBUI_TS_PARSER_IMAGE
   tags: [ "runner:docker", "size:large" ]
@@ -130,7 +131,8 @@ validate-log-intgs-builder:
     #refs:
     #  - master
   script:
-    - docker build --tag $VALIDATE_LOG_INTGS -f .gitlab/validate-logs-intgs/Dockerfile
+    - cd .gitlab/validate-logs-intgs/
+    - docker build --tag $VALIDATE_LOG_INTGS .
     - docker images $VALIDATE_LOG_INTGS
     - docker push $VALIDATE_LOG_INTGS
   tags: [ "runner:docker", "size:large" ]
