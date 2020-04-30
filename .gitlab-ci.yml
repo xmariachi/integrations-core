@@ -15,11 +15,16 @@ variables:
 #   tags: [ "runner:main", "size:large" ]
 
 florian-test:
-  image: alpine
+  image: node:alpine
   tags: [ "runner:main", "size:large" ]
   script:
     - apk add git
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/Datadog/web-ui.git
+    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/Datadog/logs-backend.git
+    - npm install -g ts-node
+    - npm install typescript @typescript-eslint/parser @typescript-eslint/typescript-estree @types/node
+    - ts-node ./.gitlab/logs-pipeline-checker/script.ts
+
 
 release-auto:
   image: $TAGGER_IMAGE
