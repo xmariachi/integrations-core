@@ -28,9 +28,7 @@ class CheckDefinition(object):
         with open(readme_file, 'r') as f:
             content = f.read()
 
-        code_sections = re.findall(r'```.*?```', content, re.DOTALL)
-        code_sections = [c for c in code_sections if "type: file" in c]
-
+        code_sections = re.findall(r'`+.*?`+', content, re.DOTALL)
         sources = set(re.findall(r'(?:"source"|source): "?(\w+)"?', "\n".join(code_sections), re.MULTILINE))
         if len(sources) == 0:
             # print_err(f"No source defined in readme for integration {self.name}")
