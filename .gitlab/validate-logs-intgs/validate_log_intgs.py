@@ -7,8 +7,8 @@ import re
 import yaml
 import os
 
-LOGS_BACKEND_INTGS_ROOT = os.environ['LOGS_BACKEND_INTGS_ROOT']
-INTEGRATIONS_CORE = os.environ['INTEGRATIONS_CORE_ROOT']
+LOGS_BACKEND_INTGS_ROOT = os.path.abspath(os.environ['LOGS_BACKEND_INTGS_ROOT'])
+INTEGRATIONS_CORE = os.path.abspath(os.environ['INTEGRATIONS_CORE_ROOT'])
 
 
 class CheckDefinition(object):
@@ -146,5 +146,7 @@ for check in all_checks:
     if errors:
         validation_errors_per_check[check.dir_name] = errors
 
+print(LOGS_BACKEND_INTGS_ROOT)
+print(INTEGRATIONS_CORE)
 # Filter to only agt integrations checks
 print(json.dumps(validation_errors_per_check))
