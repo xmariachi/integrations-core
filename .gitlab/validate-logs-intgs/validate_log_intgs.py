@@ -131,9 +131,6 @@ if len(sys.argv) != 2:
     print_err("This script requires a single JSON file as an argument.")
     sys.exit(1)
 
-print(LOGS_BACKEND_INTGS_ROOT)
-print(INTEGRATIONS_CORE)
-
 with open(sys.argv[1]) as f:
     logs_to_metrics_mapping = json.load(f)
 
