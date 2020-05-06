@@ -2,7 +2,7 @@
 This script is expected to run from a CLI, do not import it."""
 import sys
 import json
-from typing import List
+from typing import List, Optional
 import re
 import yaml
 import os
@@ -12,40 +12,81 @@ INTEGRATIONS_CORE = os.environ['INTEGRATIONS_CORE_ROOT']
 
 
 class CheckDefinition(object):
-    def __init__(self, dir_name, name, integration_id, log_collection):
+    def __init__(self, dir_name: str) -> None:
+        # Name of the directory for this check in the integrations-core repo.
         self.dir_name = dir_name
-        self.name = name
-        self.integration_id = integration_id
-        self.log_collection = log_collection
-        self.log_source_name = None
-        self.source_name_readme = self.get_log_source_in_readme()
+        with open(os.path.join(INTEGRATIONS_CORE, dir_name, "manifest.json"), 'r') as manifest:
+            content = json.load(manifest)
+            # name of the integration
+            self.name: str = content['name']
+            # id of the integration
+            self.integration_id: str = content['integration_id']
+            # boolean: whether or not the integration supports log collection
+            self.log_collection: bool = 'log collection' in content['categories']
 
-    def set_log_source_name(self, log_source_name):
+        # The log source defined in the log pipeline for this integration. This is populated after parsing pipelines.
+        self.log_source_name: Optional[str] = None
+
+        # All the log sources defined in the README (in theory only one or zero). Useful to alert if multiple sources
+        # are defined in the README.
+        self.source_names_readme: List[str] = self.get_log_sources_in_readme()
+
+    def set_log_source_name(self, log_source_name: str) -> None:
         self.log_source_name = log_source_name
 
-    def get_log_source_in_readme(self):
+    def get_log_sources_in_readme(self) -> List[str]:
         readme_file = os.path.join(INTEGRATIONS_CORE, self.dir_name, "README.md")
         with open(readme_file, 'r') as f:
             content = f.read()
 
-        code_sections = re.findall(r'`+.*?`+', content, re.DOTALL)
+        code_sections: List[str] = re.findall(r'`+.*?`+', content, re.DOTALL)
         sources = set(re.findall(r'(?:"source"|source): "?(\w+)"?', "\n".join(code_sections), re.MULTILINE))
         if len(sources) == 0:
             # print_err(f"No source defined in readme for integration {self.name}")
-            return None
-        if len(sources) > 1:
-            raise Exception(f"More than one source defined in readme for integration {self.name}")
+            return []
 
-        return list(sources)[0]
+        return list(sources)
 
-    def is_self(self, other_check_name):
+    def is_self(self, other_check_name) -> bool:
         candidates = [self.dir_name.lower(), self.name.lower(), self.integration_id.lower()]
-        if self.source_name_readme:
-            candidates.append(self.source_name_readme.lower())
+        for source in self.source_names_readme:
+            candidates.append(source.lower())
         if other_check_name.lower() in candidates:
             return True
 
         return False
+
+    def validate(self) -> List[str]:
+        errors = []
+        if not self.log_source_name:
+            # This check doesn't appear to have a log pipeline.
+            if self.log_collection:
+                errors.append(
+                    f"Check {self.name} does not have a log pipeline but defines 'log collection' in its manifest file."
+                )
+            for source in self.source_names_readme:
+                errors.append(
+                    f"Check {self.name} does not have a log pipeline but defines 'source: {source}' in its README."
+                )
+        else:
+            # This check has a log pipeline, let's validate it.
+            if not self.log_collection:
+                errors.append(
+                    f"Check {self.name} has a log pipeline called {self.log_source_name}.yaml but does "
+                    f"not define 'log collection' in its manifest file."
+                )
+            if not self.source_names_readme:
+                errors.append(
+                    f"Check {self.name} has a log pipeline called {self.log_source_name}.yaml but does "
+                    f"not document log collection in the README file."
+                )
+            if len(self.source_names_readme) > 1:
+                errors.append(
+                    f"Check {self.name} has a log pipeline called {self.log_source_name}.yaml but documents multiple "
+                    f"sources as part of its README file. The log source ids are {self.source_names_readme}."
+                )
+
+        return errors
 
     def __repr__(self):
         return "%s(%s)" % (self.__class__.__name__, ", ".join(f"{k}={v}" for k, v in self.__dict__.items()))
@@ -62,17 +103,12 @@ def get_all_checks() -> List[CheckDefinition]:
         and os.path.isfile(os.path.join(INTEGRATIONS_CORE, d, "manifest.json"))
     ]
     check_dirs.sort()
-    manifests = []
-    for check in check_dirs:
-        with open(os.path.join(INTEGRATIONS_CORE, check, "manifest.json"), 'r') as f:
-            manifests.append(json.load(f))
 
-    integration_names = [m['name'] for m in manifests]
-    integration_ids = [m['integration_id'] for m in manifests]
-    log_collection_enabled = ['log collection' in m['categories'] for m in manifests]
+    all_checks = []
+    for check_dir in check_dirs:
+        all_checks.append(CheckDefinition(check_dir))
 
-    for i in range(len(check_dirs)):
-        yield CheckDefinition(check_dirs[i], integration_names[i], integration_ids[i], log_collection_enabled[i])
+    return all_checks
 
 
 def get_all_log_pipelines_ids():
@@ -81,7 +117,7 @@ def get_all_log_pipelines_ids():
     files.sort()
     for file in files:
         with open(file, 'r') as f:
-            yield yaml.load(f)['id']
+            yield yaml.load(f, Loader=yaml.SafeLoader)['id']
 
 
 def get_check_for_pipeline(log_source_name, agt_intgs_checks):
@@ -99,25 +135,16 @@ with open(sys.argv[1]) as f:
     logs_to_metrics_mapping = json.load(f)
 
 all_checks = list(get_all_checks())
-checks = []
 for pipeline_id in get_all_log_pipelines_ids():
-    check = get_check_for_pipeline(pipeline_id, all_checks)
-    if not check:
-        continue
-    check.set_log_source_name(pipeline_id)
-    checks.append(check)
+    if check := get_check_for_pipeline(pipeline_id, all_checks):
+        check.set_log_source_name(pipeline_id)
 
 
 validation_errors_per_check = {}
-
-for check in checks:
-    if not check.log_collection:
-        print_err(f"Check {check.name} has a log pipeline but does not define 'log collection' in its manifest file.")
-    if not check.source_name_readme:
-        print_err(f"Check {check.name} has a log pipeline but does not appear to document log collection with the correct source name in the README.")
-    elif not check.source_name_readme == check.log_source_name:
-        print_err(f"Check {check.name} uses 'source: {check.source_name_readme}' in the README but log pipeline uses {check.log_source_name}.")
+for check in all_checks:
+    errors = check.validate()
+    if errors:
+        validation_errors_per_check[check.dir_name] = errors
 
 # Filter to only agt integrations checks
-import code
-code.interact(local=locals())
+print(json.dumps(validation_errors_per_check))
