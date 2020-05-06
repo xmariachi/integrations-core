@@ -39,7 +39,7 @@ validate-log-integrations:
   stage: validate
   image: $VALIDATE_LOG_INTGS
   variables:
-    LOGS_BACKEND_INTGS_ROOT: ../logs-backend
+    LOGS_BACKEND_INTGS_ROOT: ../logs-backend/service/src/main/resources/integrations/
     INTEGRATIONS_CORE_ROOT: .
   script:
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/Datadog/logs-backend.git --depth 1 ../logs-backend
