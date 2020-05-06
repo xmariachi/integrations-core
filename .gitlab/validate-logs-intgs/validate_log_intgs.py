@@ -57,6 +57,7 @@ class CheckDefinition(object):
         return False
 
     def validate(self) -> List[str]:
+        # TODO: Check json file from web-ui
         errors = []
         if not self.log_source_name:
             # This check doesn't appear to have a log pipeline.
