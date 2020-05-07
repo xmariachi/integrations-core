@@ -32,9 +32,19 @@ EXCEPTIONS = {
 
 
 class CheckDefinition(object):
+    """
+    Represents a single check/integration for the agent, with all the various identifiers
+    it may have.
+    """
     def __init__(self, dir_name: str) -> None:
-        # Name of the directory for this check in the integrations-core repo.
+        """
+        Creates the CheckDefinition instance by looking up all ids from the integration directory.
+        Note: Does not populate log_source_name and is_defined_in_web_ui as they can't be retrieved
+        from the integration folder.
+        :param dir_name: The integration directory in the integrations-core repository
+        """
         self.dir_name = dir_name
+
         with open(os.path.join(INTEGRATIONS_CORE, dir_name, "manifest.json"), 'r') as manifest:
             content = json.load(manifest)
             # name of the integration
@@ -53,13 +63,15 @@ class CheckDefinition(object):
         self.is_defined_in_web_ui: bool = False
 
         # All the log sources defined in the README (in theory only one or zero). Useful to alert if multiple sources
-        # are defined in the README.
+        # are defined in the README or if documentation is missing.
         self.source_names_readme: List[str] = self.get_log_sources_in_readme()
 
-    def set_log_source_name(self, log_source_name: str) -> None:
-        self.log_source_name = log_source_name
-
     def get_log_sources_in_readme(self) -> List[str]:
+        """
+        Parses the README file to find `source: ID`. This log source is supposed to be the same as the one
+        defined in the logs pipeline.
+        :return: A list of all sources found in the README. Usually one or zero.
+        """
         readme_file = os.path.join(INTEGRATIONS_CORE, self.dir_name, "README.md")
         with open(readme_file, 'r') as f:
             content = f.read()
@@ -161,7 +173,7 @@ logs_to_metrics_mapping = get_log_to_metric_map(sys.argv[1])
 all_checks = list(get_all_checks())
 for pipeline_id in get_all_log_pipelines_ids():
     if check := get_check_for_pipeline(pipeline_id, all_checks):
-        check.set_log_source_name(pipeline_id)
+        check.log_source_name = pipeline_id
         check.is_defined_in_web_ui = pipeline_id in logs_to_metrics_mapping
 
 
