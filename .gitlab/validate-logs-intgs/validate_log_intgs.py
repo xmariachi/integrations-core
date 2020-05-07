@@ -17,7 +17,16 @@ ERR_MISSING_LOG_DOC = "The check has a log pipeline called but does not document
 ERR_MULTIPLE_SOURCES = "The check has a log pipeline called but documents multiple sources as part of its README file."
 
 EXCEPTIONS = {
-    'cilium': [ERR_UNEXPECTED_LOG_COLLECTION_CAT, ERR_UNEXPECTED_LOG_DOC]
+    'cilium': [
+        ERR_UNEXPECTED_LOG_COLLECTION_CAT,  # cilium does not need a pipeline to automatically parse the logs
+        ERR_UNEXPECTED_LOG_DOC  # The documentation says to use 'source: cilium'
+    ],
+    'amazon_eks': [ERR_UNEXPECTED_LOG_COLLECTION_CAT], # eks is just a tile
+    'eks_fargate': [ERR_UNEXPECTED_LOG_COLLECTION_CAT], # Log collection but not from the agent
+    'fluentd': [ERR_UNEXPECTED_LOG_COLLECTION_CAT],  # Fluentd is about log collection but we don't collect fluentd logs
+    'kubernetes': [ERR_UNEXPECTED_LOG_COLLECTION_CAT],  # The agent collects logs from kubernetes environment but there is no pipeline per se
+    'win32_event_log': [ERR_UNEXPECTED_LOG_COLLECTION_CAT],  # win32_event_log is about log collection but we don't collect fluentd logs
+
 }
 
 
@@ -68,7 +77,7 @@ class CheckDefinition(object):
     def validate(self) -> List[str]:
         # TODO: Check json file from web-ui
         if not self.is_public:
-            return set()
+            return []
 
         errors = set()
         if not self.log_source_name:
@@ -152,4 +161,6 @@ for check in all_checks:
 
 
 # Filter to only agt integrations checks
-print(json.dumps(validation_errors_per_check))
+for check, errs in validation_errors_per_check.items():
+    for err in errs:
+        print(f"{check}: {err}")
