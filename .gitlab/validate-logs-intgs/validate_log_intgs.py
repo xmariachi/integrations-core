@@ -2,13 +2,23 @@
 This script is expected to run from a CLI, do not import it."""
 import sys
 import json
-from typing import List, Optional
+from typing import List, Optional, Set
 import re
 import yaml
 import os
 
 LOGS_BACKEND_INTGS_ROOT = os.path.abspath(os.environ['LOGS_BACKEND_INTGS_ROOT'])
 INTEGRATIONS_CORE = os.path.abspath(os.environ['INTEGRATIONS_CORE_ROOT'])
+
+ERR_UNEXPECTED_LOG_COLLECTION_CAT = "The check does not have a log pipeline but defines 'log collection' in its manifest file."
+ERR_UNEXPECTED_LOG_DOC = "The check does not have a log pipeline but defines a source in its README."
+ERR_MISSING_LOG_COLLECTION_CAT = "The check has a log pipeline called but does not define 'log collection' in its manifest file."
+ERR_MISSING_LOG_DOC = "The check has a log pipeline called but does not document log collection in the README file."
+ERR_MULTIPLE_SOURCES = "The check has a log pipeline called but documents multiple sources as part of its README file."
+
+EXCEPTIONS = {
+    'cilium': [ERR_UNEXPECTED_LOG_COLLECTION_CAT, ERR_UNEXPECTED_LOG_DOC]
+}
 
 
 class CheckDefinition(object):
@@ -23,6 +33,8 @@ class CheckDefinition(object):
             self.integration_id: str = content['integration_id']
             # boolean: whether or not the integration supports log collection
             self.log_collection: bool = 'log collection' in content['categories']
+            # boolean: whether or not the integration has public facing docs
+            self.is_public: bool = content['is_public']
 
         # The log source defined in the log pipeline for this integration. This is populated after parsing pipelines.
         self.log_source_name: Optional[str] = None
@@ -39,11 +51,8 @@ class CheckDefinition(object):
         with open(readme_file, 'r') as f:
             content = f.read()
 
-        code_sections: List[str] = re.findall(r'`+.*?`+', content, re.DOTALL)
+        code_sections: List[str] = re.findall(r'(```.*?```|`.*?`)', content, re.DOTALL)
         sources = set(re.findall(r'(?:"source"|source): "?(\w+)"?', "\n".join(code_sections), re.MULTILINE))
-        if len(sources) == 0:
-            # print_err(f"No source defined in readme for integration {self.name}")
-            return []
 
         return list(sources)
 
@@ -58,36 +67,30 @@ class CheckDefinition(object):
 
     def validate(self) -> List[str]:
         # TODO: Check json file from web-ui
-        errors = []
+        if not self.is_public:
+            return set()
+
+        errors = set()
         if not self.log_source_name:
             # This check doesn't appear to have a log pipeline.
             if self.log_collection:
-                errors.append(
-                    f"Check {self.name} does not have a log pipeline but defines 'log collection' in its manifest file."
-                )
-            for source in self.source_names_readme:
-                errors.append(
-                    f"Check {self.name} does not have a log pipeline but defines 'source: {source}' in its README."
-                )
+                errors.add(ERR_UNEXPECTED_LOG_COLLECTION_CAT)
+            if self.source_names_readme:
+                errors.add(ERR_UNEXPECTED_LOG_DOC)
         else:
             # This check has a log pipeline, let's validate it.
             if not self.log_collection:
-                errors.append(
-                    f"Check {self.name} has a log pipeline called {self.log_source_name}.yaml but does "
-                    f"not define 'log collection' in its manifest file."
-                )
+                errors.add(ERR_MISSING_LOG_COLLECTION_CAT)
             if not self.source_names_readme:
-                errors.append(
-                    f"Check {self.name} has a log pipeline called {self.log_source_name}.yaml but does "
-                    f"not document log collection in the README file."
-                )
+                errors.add(ERR_MISSING_LOG_DOC)
             if len(self.source_names_readme) > 1:
-                errors.append(
-                    f"Check {self.name} has a log pipeline called {self.log_source_name}.yaml but documents multiple "
-                    f"sources as part of its README file. The log source ids are {self.source_names_readme}."
-                )
+                errors.add(ERR_MULTIPLE_SOURCES)
 
-        return errors
+        # Filter out some expected edge cases:
+        for exp_err in EXCEPTIONS.get(self.name, []):
+            if exp_err in errors:
+                errors.remove(exp_err)
+        return list(errors)
 
     def __repr__(self):
         return "%s(%s)" % (self.__class__.__name__, ", ".join(f"{k}={v}" for k, v in self.__dict__.items()))
@@ -145,7 +148,7 @@ validation_errors_per_check = {}
 for check in all_checks:
     errors = check.validate()
     if errors:
-        validation_errors_per_check[check.dir_name] = errors
+        validation_errors_per_check[check.name] = errors
 
 
 # Filter to only agt integrations checks
