@@ -13,8 +13,9 @@ INTEGRATIONS_CORE = os.path.abspath(os.environ['INTEGRATIONS_CORE_ROOT'])
 ERR_UNEXPECTED_LOG_COLLECTION_CAT = "The check does not have a log pipeline but defines 'log collection' in its manifest file."
 ERR_UNEXPECTED_LOG_DOC = "The check does not have a log pipeline but defines a source in its README."
 ERR_MISSING_LOG_COLLECTION_CAT = "The check has a log pipeline called but does not define 'log collection' in its manifest file."
-ERR_MISSING_LOG_DOC = "The check has a log pipeline called but does not document log collection in the README file."
-ERR_MULTIPLE_SOURCES = "The check has a log pipeline called but documents multiple sources as part of its README file."
+ERR_MISSING_LOG_DOC = "The check has a log pipeline but does not document log collection in the README file."
+ERR_MULTIPLE_SOURCES = "The check has a log pipeline but documents multiple sources as part of its README file."
+ERR_NOT_DEFINED_WEB_UI = "The check has a log pipeline but does not have a corresponding entry defined in web-ui."
 
 EXCEPTIONS = {
     'cilium': [
@@ -47,6 +48,9 @@ class CheckDefinition(object):
 
         # The log source defined in the log pipeline for this integration. This is populated after parsing pipelines.
         self.log_source_name: Optional[str] = None
+
+        # Whether or not this check has a log to metrics mapping defined in web-ui
+        self.is_defined_in_web_ui: bool = False
 
         # All the log sources defined in the README (in theory only one or zero). Useful to alert if multiple sources
         # are defined in the README.
@@ -94,6 +98,8 @@ class CheckDefinition(object):
                 errors.add(ERR_MISSING_LOG_DOC)
             if len(self.source_names_readme) > 1:
                 errors.add(ERR_MULTIPLE_SOURCES)
+            if not self.is_defined_in_web_ui:
+                errors.add(ERR_NOT_DEFINED_WEB_UI)
 
         # Filter out some expected edge cases:
         for exp_err in EXCEPTIONS.get(self.name, []):
@@ -133,6 +139,12 @@ def get_all_log_pipelines_ids():
             yield yaml.load(f, Loader=yaml.SafeLoader)['id']
 
 
+def get_log_to_metric_map(file_path):
+    with open(file_path) as f:
+        mapping = json.load(f)
+
+    return {x['logSourceName']: x['metricsPrefixes'] for x in mapping if 'logSourceName' in x}
+
 def get_check_for_pipeline(log_source_name, agt_intgs_checks):
     for check in agt_intgs_checks:
         if check.is_self(log_source_name):
@@ -144,13 +156,13 @@ if len(sys.argv) != 2:
     print_err("This script requires a single JSON file as an argument.")
     sys.exit(1)
 
-with open(sys.argv[1]) as f:
-    logs_to_metrics_mapping = json.load(f)
+logs_to_metrics_mapping = get_log_to_metric_map(sys.argv[1])
 
 all_checks = list(get_all_checks())
 for pipeline_id in get_all_log_pipelines_ids():
     if check := get_check_for_pipeline(pipeline_id, all_checks):
         check.set_log_source_name(pipeline_id)
+        check.is_defined_in_web_ui = pipeline_id in logs_to_metrics_mapping
 
 
 validation_errors_per_check = {}
