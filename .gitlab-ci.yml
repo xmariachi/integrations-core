@@ -43,8 +43,7 @@ validate-log-integrations:
     INTEGRATIONS_CORE_ROOT: .
   script:
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/Datadog/logs-backend.git --depth 1 ../logs-backend
-    - errors=$(python .gitlab/validate-logs-intgs/validate_log_intgs.py logs_integrations.json)
-    - 
+    - python .gitlab/validate-logs-intgs/validate_log_intgs.py logs_integrations.json
   tags: [ "runner:main", "size:large" ]
 
 
